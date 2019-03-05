@@ -9,57 +9,59 @@ import (
 )
 
 func TestParse_none(t *testing.T) {
-	res := Parse("")
+	res := Parse("", nil)
 	assert.Equal(t, "", res)
 }
 
+func allowAll(string) bool { return true }
+
 func TestParse_localhost(t *testing.T) {
-	res := Parse("127.0.0.1")
+	res := Parse("127.0.0.1", allowAll)
 	assert.Equal(t, "127.0.0.1", res)
 }
 
 func TestParse_invalid(t *testing.T) {
-	res := Parse("invalid")
+	res := Parse("invalid", allowAll)
 	assert.Equal(t, "", res)
 }
 
 func TestParse_invalid_sioux(t *testing.T) {
-	res := Parse("123#1#2#3")
+	res := Parse("123#1#2#3", allowAll)
 	assert.Equal(t, "", res)
 }
 
 func TestParse_invalid_private_lookalike(t *testing.T) {
-	res := Parse("102.3.2.1")
+	res := Parse("102.3.2.1", allowAll)
 	assert.Equal(t, "102.3.2.1", res)
 }
 
 func TestParse_valid(t *testing.T) {
-	res := Parse("68.45.152.220")
+	res := Parse("68.45.152.220", allowAll)
 	assert.Equal(t, "68.45.152.220", res)
 }
 
 func TestParse_multi_first(t *testing.T) {
-	res := Parse("12.13.14.15, 68.45.152.220")
+	res := Parse("12.13.14.15, 68.45.152.220", allowAll)
 	assert.Equal(t, "12.13.14.15", res)
 }
 
 func TestParse_multi_with_invalid(t *testing.T) {
-	res := Parse("invalid, 190.57.149.90")
+	res := Parse("invalid, 190.57.149.90", allowAll)
 	assert.Equal(t, "190.57.149.90", res)
 }
 
 func TestParse_multi_with_invalid2(t *testing.T) {
-	res := Parse("190.57.149.90, invalid")
-	assert.Equal(t, "190.57.149.90", res)
+	res := Parse("190.57.149.90, invalid", allowAll)
+	assert.Equal(t, "", res)
 }
 
 func TestParse_multi_with_invalid_sioux(t *testing.T) {
-	res := Parse("190.57.149.90, 123#1#2#3")
-	assert.Equal(t, "190.57.149.90", res)
+	res := Parse("190.57.149.90, 123#1#2#3", allowAll)
+	assert.Equal(t, "", res)
 }
 
 func TestParse_ipv6_with_port(t *testing.T) {
-	res := Parse("2604:2000:71a9:bf00:f178:a500:9a2d:670d")
+	res := Parse("2604:2000:71a9:bf00:f178:a500:9a2d:670d", allowAll)
 	assert.Equal(t, "2604:2000:71a9:bf00:f178:a500:9a2d:670d", res)
 }
 
@@ -156,4 +158,20 @@ func TestAllowed_no(t *testing.T) {
 		AllowedSubnets: []string{"127.0.0.1/32"},
 	})
 	assert.False(t, m.allowed("127.0.0.2"))
+}
+
+func TestParseUnallowedMidway(t *testing.T) {
+	m, _ := New(Options{
+		AllowedSubnets: []string{"127.0.0.0/16"},
+	})
+	res := Parse("1.1.1.1, 8.8.8.8, 127.0.0.1, 127.0.0.2", m.allowed)
+	assert.Equal(t, "8.8.8.8", res)
+}
+
+func TestParseMany(t *testing.T) {
+	m, _ := New(Options{
+		AllowedSubnets: []string{"127.0.0.0/16"},
+	})
+	res := Parse("1.1.1.1, 127.0.0.1, 127.0.0.2, 127.0.0.3", m.allowed)
+	assert.Equal(t, "1.1.1.1", res)
 }

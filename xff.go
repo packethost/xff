@@ -32,14 +32,36 @@ func ipInMasks(ip net.IP, masks []net.IPNet) bool {
 }
 
 // Parse parses the value of the X-Forwarded-For Header and returns the IP address.
-func Parse(ipList string) string {
-	for _, ip := range strings.Split(ipList, ",") {
-		ip = strings.TrimSpace(ip)
-		if IP := net.ParseIP(ip); IP != nil {
+func Parse(ipList string, allowed func(string) bool) string {
+	ips := strings.Split(ipList, ",")
+	if len(ips) == 0 {
+		return ""
+	}
+
+	// simple case of only 1 proxy
+	if len(ips) == 1 {
+		ip := strings.TrimSpace(ips[0])
+		if net.ParseIP(ip) != nil {
 			return ip
 		}
+		return ""
 	}
-	return ""
+
+	// multiple proxies
+	// common form of X-F-F is: client, proxy1, proxy2, ... proxyN-1
+	// so we verify backwards and return the first unallowed/untrusted proxy
+	lastIP := ""
+	for i := len(ips) - 1; i >= 0; i-- {
+		ip := strings.TrimSpace(ips[i])
+		if net.ParseIP(ip) == nil {
+			break
+		}
+		lastIP = ip
+		if !allowed(ip) {
+			break
+		}
+	}
+	return lastIP
 }
 
 // GetRemoteAddr parses the given request, resolves the X-Forwarded-For header
@@ -54,7 +76,7 @@ func GetRemoteAddrIfAllowed(r *http.Request, allowed func(sip string) bool) stri
 	if xffh := r.Header.Get("X-Forwarded-For"); xffh != "" {
 		if sip, sport, err := net.SplitHostPort(r.RemoteAddr); err == nil && sip != "" {
 			if allowed(sip) {
-				if xip := Parse(xffh); xip != "" {
+				if xip := Parse(xffh, allowed); xip != "" {
 					return net.JoinHostPort(xip, sport)
 				}
 			}
