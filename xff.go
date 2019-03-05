@@ -8,15 +8,6 @@ import (
 	"strings"
 )
 
-// list of private subnets
-var privateMasks, _ = toMasks([]string{
-	"127.0.0.0/8",
-	"10.0.0.0/8",
-	"172.16.0.0/12",
-	"192.168.0.0/16",
-	"fc00::/7",
-})
-
 // converts a list of subnets' string to a list of net.IPNet.
 func toMasks(ips []string) (masks []net.IPNet, err error) {
 	for _, cidr := range ips {
@@ -40,19 +31,11 @@ func ipInMasks(ip net.IP, masks []net.IPNet) bool {
 	return false
 }
 
-// IsPublicIP returns true if the given IP can be routed on the Internet.
-func IsPublicIP(ip net.IP) bool {
-	if !ip.IsGlobalUnicast() {
-		return false
-	}
-	return !ipInMasks(ip, privateMasks)
-}
-
 // Parse parses the value of the X-Forwarded-For Header and returns the IP address.
 func Parse(ipList string) string {
 	for _, ip := range strings.Split(ipList, ",") {
 		ip = strings.TrimSpace(ip)
-		if IP := net.ParseIP(ip); IP != nil && IsPublicIP(IP) {
+		if IP := net.ParseIP(ip); IP != nil {
 			return ip
 		}
 	}
